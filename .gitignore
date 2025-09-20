@@ -1,0 +1,5 @@
+# Compiled Java class files and build outputs
+/target/
+
+# IDE-specific files
+.vscode/

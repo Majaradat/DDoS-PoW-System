@@ -1,0 +1,32 @@
+{
+  "policies": [
+    {
+      "level": 4,
+      "levelName": "Critical",
+      "rps": 400,
+      "repetitionScore": 0.9,
+      "sessionDurationSeconds": 10
+    },
+    {
+      "level": 3,
+      "levelName": "High",
+      "rps": 200,
+      "repetitionScore": 0.8,
+      "sessionDurationSeconds": 20
+    },
+    {
+      "level": 2,
+      "levelName": "Moderate",
+      "rps": 100,
+      "repetitionScore": 0.7,
+      "sessionDurationSeconds": 60
+    },
+    {
+      "level": 1,
+      "levelName": "Low",
+      "rps": 50,
+      "repetitionScore": 0.6,
+      "sessionDurationSeconds": 120
+    }
+  ]
+}
