@@ -3,29 +3,29 @@
     {
       "level": 4,
       "levelName": "Critical",
-      "rps": 400,
-      "repetitionScore": 0.9,
-      "sessionDurationSeconds": 10
+      "rps": 200,
+      "repetitionScore": 0.95,
+      "sessionDurationSeconds": 15
     },
     {
       "level": 3,
       "levelName": "High",
-      "rps": 200,
-      "repetitionScore": 0.8,
-      "sessionDurationSeconds": 20
+      "rps": 100,
+      "repetitionScore": 0.85,
+      "sessionDurationSeconds": 30
     },
     {
       "level": 2,
       "levelName": "Moderate",
-      "rps": 100,
-      "repetitionScore": 0.7,
+      "rps": 50,
+      "repetitionScore": 0.70,
       "sessionDurationSeconds": 60
     },
     {
       "level": 1,
       "levelName": "Low",
-      "rps": 50,
-      "repetitionScore": 0.6,
+      "rps": 25,
+      "repetitionScore": 0.50,
       "sessionDurationSeconds": 120
     }
   ]
