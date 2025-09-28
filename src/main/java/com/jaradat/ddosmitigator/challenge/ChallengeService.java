@@ -42,6 +42,28 @@ public class ChallengeService {
     }
 
     /**
+     * Solves a given challenge using brute force.
+     * This is the REAL, CPU-intensive work an attacker would have to do.
+     * @return The solution nonce as a String.
+     */
+    public String solveChallenge(Challenge challenge) {
+        String target = "0".repeat(challenge.getDifficulty());
+        long nonce = 0;
+        
+        while (nonce < Long.MAX_VALUE) {
+            String dataToHash = challenge.getChallengeString() + nonce;
+            byte[] hashBytes = digest.digest(dataToHash.getBytes(StandardCharsets.UTF_8));
+            String hashString = toHexString(hashBytes);
+
+            if (hashString.startsWith(target)) {
+                return String.valueOf(nonce); // Solution found!
+            }
+            nonce++;
+        }
+        return null; // Should realistically never be reached
+    }
+
+    /**
      * Helper method to convert a byte array (the hash) into a hexadecimal string.
      */
     private String toHexString(byte[] hash) {
