@@ -14,9 +14,11 @@ public class IPProfile {
     private final long firstRequestTimestamp;
     private int totalRequestCount = 0;
 
-    // --- NEW STATE VARIABLES ---
+    // --- NEW STATEFUL VARIABLES ---
+    // The current severity level based on traffic metrics.
     private int currentSeverity = 0;
-    private long firstDetectionTimestamp = 0; // Timestamp of when the threat was first detected
+    // The timestamp when a threat was first detected. 0 if no threat.
+    private long firstDetectionTimestamp = 0;
 
     public IPProfile(String ipAddress) {
         this.ipAddress = ipAddress;
@@ -59,32 +61,32 @@ public class IPProfile {
         return (System.currentTimeMillis() - this.firstRequestTimestamp) / 1000L;
     }
 
-    // --- NEW GETTERS AND SETTERS FOR STATE ---
+    // --- NEW STATE MANAGEMENT METHODS ---
+
     public int getCurrentSeverity() {
         return currentSeverity;
     }
 
-    public void setCurrentSeverity(int newSeverity) {
-        // Only escalate severity, don't downgrade automatically.
-        if (newSeverity > this.currentSeverity) {
-            this.currentSeverity = newSeverity;
+    public void updateSeverity(int newSeverity) {
+        if (newSeverity > 0 && this.currentSeverity == 0) {
+            // This is the first time we've detected a threat for this profile
+            this.firstDetectionTimestamp = System.currentTimeMillis();
+        } else if (newSeverity == 0) {
+            // The threat has passed, reset the detection timestamp
+            this.firstDetectionTimestamp = 0;
         }
+        this.currentSeverity = newSeverity;
     }
 
     public long getFirstDetectionTimestamp() {
         return firstDetectionTimestamp;
     }
-
-    public void setFirstDetectionTimestamp(long firstDetectionTimestamp) {
-        this.firstDetectionTimestamp = firstDetectionTimestamp;
-    }
-
-    public String getIpAddress() {
-        return ipAddress;
+    
+    public int getActionableSeverity() {
+        return this.currentSeverity;
     }
     
-    public void resetDetectionState() {
-        this.currentSeverity = 0;
-        this.firstDetectionTimestamp = 0;
+    public String getIpAddress() {
+        return ipAddress;
     }
 }

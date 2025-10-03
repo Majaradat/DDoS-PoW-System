@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Mitigation System - Live Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --blue-dark: #1E3A8A;
+            --blue-primary: #3B82F6;
+            --blue-light: #60A5FA;
+            --glass: #F0F9FF;
+            --red-alert: #DC2626;
+            --text: #e5e7eb;
+            --text-muted: #9ca3af;
+            --green-ok: #22c55e;
+            --yellow-warn: #facc15;
+            --orange-high: #fb923c;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--blue-dark) 0%, #111827 100%);
+            margin: 0;
+            padding: 24px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            font-weight: 700;
+            color: var(--glass);
+            margin: 0;
+            letter-spacing: -1px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px; /* Adjusted max-width */
+            display: grid;
+            grid-template-columns: 1fr 2fr; /* Adjusted grid layout */
+            gap: 24px;
+        }
+
+        .card {
+            background: rgba(240, 249, 255, 0.05);
+            border: 1px solid rgba(240, 249, 255, 0.1);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+            color: var(--glass);
+            border-bottom: 1px solid rgba(240, 249, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        /* STATUS PANEL */
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .status-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(240,249,255,0.08);
+            border-radius: 12px;
+            padding: 12px;
+            transition: background 0.3s ease;
+        }
+        .status-item strong {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75em;
+            font-weight: 500;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .status-item span {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--glass);
+        }
+        
+        #severity-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #severity-item strong {
+             margin-bottom: 0;
+        }
+
+        #status-ip { font-size: 1.1em; font-family: 'Roboto Mono', monospace; }
+
+        /* SEVERITY GAUGE */
+        .gauge-container {
+            position: relative;
+            width: 100%;
+            height: 70px; /* Adjusted height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 4px; /* Reduced margin */
+        }
+        .gauge-svg {
+            width: 140px; /* Resized */
+            height: 80px; /* Resized */
+        }
+        .gauge-track, .gauge-value {
+            fill: none;
+            stroke-width: 14; /* Made thicker */
+            stroke-linecap: round;
+        }
+        .gauge-track {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+        .gauge-value {
+            transition: stroke-dashoffset 0.5s ease-out, stroke 0.5s ease-out;
+        }
+        .gauge-text {
+            position: absolute;
+            top: 60%; /* Adjusted for new size */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2em; /* CORRECTED FONT SIZE */
+            font-weight: 700;
+            color: var(--glass);
+        }
+
+        #system-status-card {
+            border: 1px solid transparent;
+            margin-top: 16px;
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.04);
+            transition: all 0.5s ease;
+        }
+        #system-status-card.alert {
+            background: rgba(220, 38, 38, 0.15);
+            border-color: var(--red-alert);
+        }
+
+        /* LOGS */
+        .log-container {
+            grid-column: 1 / -1;
+            height: 350px;
+            overflow-y: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.9em;
+            background: rgba(240, 249, 255, 0.05);
+            border-radius: 16px;
+            padding: 16px;
+        }
+        .log-entry { margin-bottom: 8px; white-space: pre-wrap; }
+        .log-objective { color: var(--blue-light); font-weight: 500; }
+        .log-conclusion { color: #4ade80; font-weight: 600; }
+        .log-mitigation { color: #facc15; font-weight: 500; }
+        .log-solve { color: #f472b6; font-weight: 500; }
+
+        /* CHART */
+        canvas {
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>DDoS Mitigation System</h1>
+    </div>
+
+    <div class="container">
+        <!-- Status Card -->
+        <div class="card" id="status-card">
+            <h2>Live Threat Status</h2>
+            <div id="status-ip"><strong>IP Address:</strong> <span>N/A</span></div>
+            <div class="status-grid">
+                <div class="status-item"><strong>RPS</strong> <span id="status-rps">0.00</span></div>
+                <div class="status-item"><strong>Repetition</strong> <span id="status-repetition">0.00</span></div>
+                <div class="status-item"><strong>Duration (s)</strong> <span id="status-duration">0</span></div>
+                <div class="status-item" id="severity-item">
+                    <strong>Severity</strong>
+                    <!-- NEW GAUGE -->
+                    <div class="gauge-container">
+                        <svg class="gauge-svg" viewBox="0 0 140 70">
+                            <path class="gauge-track" d="M 10 60 A 60 60 0 0 1 130 60"></path>
+                            <path class="gauge-value" id="severity-gauge-value" d="M 10 60 A 60 60 0 0 1 130 60"></path>
+                        </svg>
+                        <div class="gauge-text" id="severity-gauge-text">Level 0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="status-item" id="system-status-card">
+                <strong>System Status</strong>
+                <span id="system-status" style="font-size: 1.1em;">Awaiting Demo Start...</span>
+            </div>
+        </div>
+
+        <!-- Chart Card -->
+        <div class="card">
+            <h2>Requests Per Second (Live)</h2>
+            <canvas id="rpsChart"></canvas>
+        </div>
+
+        <!-- Logs -->
+        <div class="log-container card" id="log-output">
+            <div class="log-entry log-objective">Awaiting WebSocket Connection...</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const logOutput = document.getElementById('log-output');
+            const statusIpSpan = document.querySelector('#status-ip span');
+            const statusRpsSpan = document.getElementById('status-rps');
+            const statusRepetitionSpan = document.getElementById('status-repetition');
+            const statusDurationSpan = document.getElementById('status-duration');
+            const systemStatusSpan = document.getElementById('system-status');
+            const systemStatusCard = document.getElementById('system-status-card');
+            
+            // New Gauge Elements
+            const gaugeValuePath = document.getElementById('severity-gauge-value');
+            const gaugeText = document.getElementById('severity-gauge-text');
+            const circumference = gaugeValuePath.getTotalLength();
+            const severityColors = ['var(--green-ok)', 'var(--yellow-warn)', 'var(--orange-high)', 'var(--red-alert)', 'var(--red-alert)'];
+            
+            gaugeValuePath.style.strokeDasharray = `${circumference} ${circumference}`;
+            gaugeValuePath.style.strokeDashoffset = circumference;
+
+
+            let chart;
+            const chartData = {
+                labels: [],
+                datasets: [{
+                    label: 'RPS',
+                    borderColor: 'var(--blue-primary)',
+                    data: [],
+                    fill: true,
+                    tension: 0.4
+                }]
+            };
+
+            function initChart() {
+                const ctx = document.getElementById('rpsChart').getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.6)');
+                gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+                chartData.datasets[0].backgroundColor = gradient;
+
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: 'var(--text)' }, grid: { color: 'rgba(240, 249, 255, 0.05)' } },
+                            x: { ticks: { color: 'var(--text)' }, grid: { color: 'rgba(240, 249, 255, 0.05)' } }
+                        },
+                        plugins: { legend: { display: false } },
+                        animation: { duration: 500 }
+                    }
+                });
+            }
+            initChart();
+
+            function addLog(message, type) {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                logEntry.textContent = `> ${message}`;
+                logOutput.appendChild(logEntry);
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+
+            function updateStatus(data) {
+                statusIpSpan.textContent = data.ip;
+                statusRpsSpan.textContent = data.rps;
+                statusRepetitionSpan.textContent = data.repetition;
+                statusDurationSpan.textContent = data.duration;
+
+                const severityLevel = data.actionableSeverity > 0 ? data.actionableSeverity : data.currentSeverity;
+                
+                // Update Gauge
+                const percent = severityLevel / 4;
+                const offset = circumference * (1 - percent);
+                gaugeValuePath.style.strokeDashoffset = offset;
+                gaugeValuePath.style.stroke = severityColors[severityLevel];
+                gaugeText.textContent = `Level ${severityLevel}`;
+                gaugeText.style.color = severityColors[severityLevel];
+                
+                systemStatusSpan.textContent = data.status;
+                systemStatusCard.classList.toggle('alert', severityLevel > 0);
+
+                const time = new Date().toLocaleTimeString();
+                if (chartData.labels.length > 20) {
+                    chartData.labels.shift();
+                    chartData.datasets[0].data.shift();
+                }
+                chartData.labels.push(time);
+                chartData.datasets[0].data.push(parseFloat(data.rps));
+                chart.update();
+            }
+
+            const ws = new WebSocket(`ws://${window.location.host}/dashboard-updates`);
+
+            ws.onopen = () => {
+                logOutput.innerHTML = '';
+                addLog('WebSocket Connection Established. Starting demo...', 'objective');
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+
+                switch(msg.type) {
+                    case 'log':
+                    case 'conclusion':
+                        addLog(msg.data.message, msg.type);
+                        break;
+                    case 'objective':
+                        addLog(`\n--- ${msg.data.message} ---`, 'objective');
+                        break;
+                    case 'solve':
+                        addLog(`[SYSTEM] ${msg.data.message}`, 'solve');
+                        break;
+                    case 'status':
+                        updateStatus(msg.data);
+                        break;
+                }
+            };
+            
+            ws.onclose = () => {
+                addLog('WebSocket Connection Closed. Demo finished.', 'conclusion');
+                systemStatusSpan.textContent = "Demo Finished.";
+                systemStatusCard.classList.remove('alert');
+            };
+
+            ws.onerror = (error) => {
+                addLog('WebSocket Error: Could not connect to backend.', 'mitigation');
+            };
+        });
+    </script>
+</body>
+</html>
