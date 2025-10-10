@@ -5,9 +5,8 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Comparator; // <-- ADD THIS IMPORT
 import java.util.List;
-import java.util.Map; 
+import java.util.Map;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -18,11 +17,6 @@ public class PolicyManager {
 
     public PolicyManager() {
         loadPolicies("config.json");
-        // ADD THIS BLOCK TO SORT THE RULES
-        if (this.rules != null) {
-            // This sorts the list so that Level 1 is at the start and Level 4 is at the end.
-            this.rules.sort(Comparator.comparingInt(rule -> rule.level));
-        }
     }
 
     private void loadPolicies(String fileName) {

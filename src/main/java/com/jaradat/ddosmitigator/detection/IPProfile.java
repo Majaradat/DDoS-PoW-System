@@ -14,11 +14,11 @@ public class IPProfile {
     private final long firstRequestTimestamp;
     private int totalRequestCount = 0;
 
-    // --- NEW STATEFUL VARIABLES ---
-    // The current severity level based on traffic metrics.
+    // --- STATE & REPUTATION VARIABLES (NEW) ---
     private int currentSeverity = 0;
-    // The timestamp when a threat was first detected. 0 if no threat.
     private long firstDetectionTimestamp = 0;
+    private int strikeCount = 0; // The "strike count" for this IP.
+    private long verifiedUntilTimestamp = 0; // When their "verified" status expires.
 
     public IPProfile(String ipAddress) {
         this.ipAddress = ipAddress;
@@ -61,32 +61,52 @@ public class IPProfile {
         return (System.currentTimeMillis() - this.firstRequestTimestamp) / 1000L;
     }
 
-    // --- NEW STATE MANAGEMENT METHODS ---
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    // --- NEW GETTERS AND SETTERS FOR STATE & REPUTATION ---
 
     public int getCurrentSeverity() {
         return currentSeverity;
     }
 
-    public void updateSeverity(int newSeverity) {
-        if (newSeverity > 0 && this.currentSeverity == 0) {
-            // This is the first time we've detected a threat for this profile
+    public void setCurrentSeverity(int severity) {
+        if (severity > 0 && this.currentSeverity == 0) {
             this.firstDetectionTimestamp = System.currentTimeMillis();
-        } else if (newSeverity == 0) {
-            // The threat has passed, reset the detection timestamp
+        } else if (severity == 0) {
             this.firstDetectionTimestamp = 0;
         }
-        this.currentSeverity = newSeverity;
+        this.currentSeverity = severity;
     }
 
     public long getFirstDetectionTimestamp() {
         return firstDetectionTimestamp;
     }
-    
-    public int getActionableSeverity() {
-        return this.currentSeverity;
+
+    public int getStrikeCount() {
+        return strikeCount;
     }
-    
-    public String getIpAddress() {
-        return ipAddress;
+
+    /**
+     * Increases the strike count for this IP. This is called after a re-offense.
+     */
+    public void incrementStrikeCount() {
+        this.strikeCount++;
+    }
+
+    /**
+     * Checks if this IP has a valid, unexpired "Verified" status.
+     */
+    public boolean isVerified() {
+        return System.currentTimeMillis() < this.verifiedUntilTimestamp;
+    }
+
+    /**
+     * Grants this IP a "Verified" status for a set duration after solving a challenge.
+     * @param durationInMillis The duration of the verified status in milliseconds.
+     */
+    public void setVerified(long durationInMillis) {
+        this.verifiedUntilTimestamp = System.currentTimeMillis() + durationInMillis;
     }
 }

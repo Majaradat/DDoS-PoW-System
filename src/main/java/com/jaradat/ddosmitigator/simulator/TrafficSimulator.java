@@ -2,13 +2,14 @@ package com.jaradat.ddosmitigator.simulator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 import com.jaradat.ddosmitigator.core.Request;
 
+/**
+ * Generates simulated traffic for various scenarios.
+ * This class creates Request objects in memory, not real network traffic.
+ */
 public class TrafficSimulator {
-
-    private final Random random = new Random();
 
     /**
      * Simulates a burst of traffic from a simple bot that repeatedly hits one URL.
@@ -17,9 +18,8 @@ public class TrafficSimulator {
      * @return A list of simulated Request objects.
      */
     public List<Request> simulateDumbBotAttack(String ipAddress, int requestCount) {
-        System.out.println("--- Simulating a dumb bot attack from " + ipAddress + " with " + requestCount + " requests ---");
         List<Request> traffic = new ArrayList<>();
-        String targetUrl = "/api/v1/login"; // Bots often target a single, expensive endpoint.
+        String targetUrl = "/api/v1/login"; // A common target for bots
         for (int i = 0; i < requestCount; i++) {
             traffic.add(new Request(ipAddress, targetUrl));
         }
@@ -32,7 +32,6 @@ public class TrafficSimulator {
      * @return A list of simulated Request objects.
      */
     public List<Request> simulateNormalUser(String ipAddress) {
-        System.out.println("--- Simulating a normal user from " + ipAddress + " ---");
         List<Request> traffic = new ArrayList<>();
         traffic.add(new Request(ipAddress, "/"));
         traffic.add(new Request(ipAddress, "/products/item123"));

@@ -16,8 +16,7 @@ import com.jaradat.ddosmitigator.simulator.TrafficSimulator;
 import io.javalin.websocket.WsContext;
 
 /**
- * This class contains the logic for running the multi-scenario demonstration.
- * Its single responsibility is to execute the demo script and broadcast updates.
+ * This class contains the final, corrected demonstration script with guaranteed difficulty scaling.
  */
 public class DemoRunner {
 
@@ -27,125 +26,145 @@ public class DemoRunner {
     private final ConcurrentLinkedQueue<WsContext> wsContexts;
     private final Gson gson = new Gson();
 
-    public DemoRunner(PolicyManager pm, TrafficSimulator sim, ChallengeService cs, ConcurrentLinkedQueue<WsContext> contexts) {
-        this.policyManager = pm;
-        this.simulator = sim;
-        this.challengeService = cs;
-        this.wsContexts = contexts;
+    public DemoRunner(PolicyManager policyManager, TrafficSimulator simulator, ChallengeService challengeService, ConcurrentLinkedQueue<WsContext> wsContexts) {
+        this.policyManager = policyManager;
+        this.simulator = simulator;
+        this.challengeService = challengeService;
+        this.wsContexts = wsContexts;
     }
 
     public void run() {
         try {
-            // --- SCENARIO 1: The Legitimate User ---
-            broadcastUpdate("log", "--- SCENARIO 1: The Legitimate User ---");
-            broadcastUpdate("objective", "OBJECTIVE: Prove that normal, low-rate traffic is not impacted.");
-            DetectionEngine engine1 = new DetectionEngine(policyManager);
-            String userIp = "192.168.1.100";
-            List<Request> normalTraffic = simulator.simulateNormalUser(userIp);
-            for (Request req : normalTraffic) {
-                engine1.processRequest(req);
-            }
-            IPProfile userProfile = engine1.getProfile(userIp);
-            broadcastUpdate("status", userIp, userProfile, 0, 0, "Benign traffic identified. No action taken.");
-            broadcastUpdate("log", "CONCLUSION: System correctly identified traffic as benign. Test PASSED.\n");
-            Thread.sleep(3000);
+            runScenario_NormalUser();
+            runScenario_DumbBotFlood();
+            runScenario_PersistentAdversary(); 
 
-            // --- SCENARIO 2: The "Dumb Bot" Flood ---
-            broadcastUpdate("log", "--- SCENARIO 2: The 'Dumb Bot' Flood ---");
-            broadcastUpdate("objective", "OBJECTIVE: Demonstrate fast detection, challenge, and blocking of a non-responsive attacker.");
-            DetectionEngine engine2 = new DetectionEngine(policyManager);
-            String dumbBotIp = "10.20.30.40";
-            for (int second = 1; second <= 3; second++) {
-                List<Request> attackTraffic = simulator.simulateDumbBotAttack(dumbBotIp, 250);
-                int actionableSeverity = 0;
-                for (Request req : attackTraffic) {
-                    actionableSeverity = engine2.processRequest(req);
-                }
-                IPProfile profile = engine2.getProfile(dumbBotIp);
-                String statusMsg = "Detecting threat. In observation window...";
-                if (actionableSeverity > 0) {
-                     statusMsg = "Threat confirmed. Issuing challenge.";
-                }
-                broadcastUpdate("status", dumbBotIp, profile, profile.getCurrentSeverity(), actionableSeverity, statusMsg);
-                Thread.sleep(1000);
-            }
-            broadcastUpdate("log", "[MITIGATION] Timeout exceeded. IP " + dumbBotIp + " is now considered BLOCKED.");
-            broadcastUpdate("log", "CONCLUSION: System successfully detected the flood and simulated blocking the non-compliant bot. Test PASSED.\n");
-            Thread.sleep(3000);
-
-            // --- SCENARIO 3: The Dynamic Escalation ---
-            broadcastUpdate("log", "--- SCENARIO 3: The Dynamic Escalation ---");
-            broadcastUpdate("objective", "OBJECTIVE: Showcase the system adapting to a threat that increases its intensity in real-time.");
-            DetectionEngine engine3 = new DetectionEngine(policyManager);
-            String smartBotIp = "99.88.77.66";
-            
-            List<Request> moderateAttack = simulator.simulateDumbBotAttack(smartBotIp, 100);
-            for (Request req : moderateAttack) {
-                engine3.processRequest(req);
-            }
-            IPProfile smartBotProfile = engine3.getProfile(smartBotIp);
-            broadcastUpdate("status", smartBotIp, smartBotProfile, smartBotProfile.getCurrentSeverity(), 0, "Initial threat detected. In observation window...");
-            Thread.sleep(1000);
-            
-            List<Request> criticalAttack = simulator.simulateDumbBotAttack(smartBotIp, 250);
-            int finalActionableSeverity = 0;
-            for (Request req : criticalAttack) {
-                finalActionableSeverity = engine3.processRequest(req);
-            }
-            smartBotProfile = engine3.getProfile(smartBotIp);
-            broadcastUpdate("status", smartBotIp, smartBotProfile, smartBotProfile.getCurrentSeverity(), finalActionableSeverity, "Attack escalated to CRITICAL.");
-            
-            if (finalActionableSeverity > 0) {
-                int difficulty = finalActionableSeverity + 2;
-                broadcastUpdate("log", "[MITIGATION] Issuing a high-difficulty PoW Challenge (Difficulty " + difficulty + ").");
-                Challenge challenge = challengeService.createChallenge(difficulty);
-                
-                broadcastUpdate("log", "[ATTACKER SIM] Received challenge. Brute-forcing solution... (This may take a moment)");
-                long startTime = System.currentTimeMillis();
-                String solution = challengeService.solveChallenge(challenge);
-                long endTime = System.currentTimeMillis();
-                double timeTaken = (endTime - startTime) / 1000.0;
-                
-                String resultLog = String.format("Solution found in %.2f seconds.", timeTaken);
-                broadcastUpdate("solve", resultLog);
-                broadcastUpdate("log", "CONCLUSION: System dynamically adapted to the escalating threat, imposing a significant computational cost. Test PASSED.\n");
-            }
-            
-            broadcastUpdate("log", "================ DEMO FINISHED ================");
-
+            broadcastUpdate("log", Map.of("message", "================ DEMO FINISHED ================"));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            try { Thread.sleep(2000); } catch (InterruptedException e) {}
+            wsContexts.forEach(WsContext::closeSession);
         }
     }
 
-    // --- BROADCAST HELPER METHODS ---
-    private void broadcastUpdate(String type, String message) {
-        broadcastUpdate(type, Map.of("message", message));
-    }
-    
-    private void broadcastUpdate(String type, String objective, String message) {
-         broadcastUpdate(type, Map.of("objective", objective, "message", message));
-    }
-    
-    private void broadcastUpdate(String type, Object data) {
-        String jsonMessage = gson.toJson(Map.of("type", type, "data", data));
-        wsContexts.forEach(ctx -> {
-            if (ctx.session.isOpen()) {
-                ctx.send(jsonMessage);
-            }
-        });
+    private void runScenario_NormalUser() throws InterruptedException {
+        broadcastUpdate("objective", Map.of("message", "SCENARIO 1: The Legitimate User"));
+        broadcastUpdate("log", Map.of("message", "OBJECTIVE: Prove that normal, low-rate traffic is not impacted."));
+        DetectionEngine engine = new DetectionEngine(policyManager);
+        String userIp = "192.168.1.100";
+        List<Request> normalTraffic = simulator.simulateNormalUser(userIp);
+        for (Request req : normalTraffic) {
+            engine.processRequest(req);
+        }
+        IPProfile userProfile = engine.getProfile(userIp);
+        broadcastUpdate("status", createStatusMap(userIp, userProfile, 0, "Benign traffic identified."));
+        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System correctly identified traffic as benign. Test PASSED.\n"));
+        Thread.sleep(3000);
     }
 
-    private void broadcastUpdate(String type, String ip, IPProfile profile, int currentSeverity, int actionableSeverity, String statusMsg) {
-        Map<String, Object> data = Map.of(
+    private void runScenario_DumbBotFlood() throws InterruptedException {
+        broadcastUpdate("objective", Map.of("message", "SCENARIO 2: The 'Dumb Bot' Flood"));
+        broadcastUpdate("log", Map.of("message", "OBJECTIVE: Demonstrate fast detection and blocking of a non-responsive attacker."));
+        DetectionEngine engine = new DetectionEngine(policyManager);
+        String dumbBotIp = "10.20.30.40";
+        for (int second = 1; second <= 3; second++) {
+            List<Request> attackTraffic = simulator.simulateDumbBotAttack(dumbBotIp, 250);
+            int actionableSeverity = 0;
+            for (Request req : attackTraffic) {
+                actionableSeverity = engine.processRequest(req);
+            }
+            IPProfile profile = engine.getProfile(dumbBotIp);
+            String statusMsg = actionableSeverity > 0 ? "Threat confirmed. Action taken." : "Detecting threat...";
+            broadcastUpdate("status", createStatusMap(dumbBotIp, profile, actionableSeverity, statusMsg));
+            Thread.sleep(1000);
+        }
+        broadcastUpdate("log", Map.of("message", "[MITIGATION] Timeout exceeded. IP " + dumbBotIp + " is now considered BLOCKED."));
+        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully blocked the non-compliant bot. Test PASSED.\n"));
+        Thread.sleep(3000);
+    }
+    
+    private void runScenario_PersistentAdversary() throws InterruptedException {
+        broadcastUpdate("objective", Map.of("message", "SCENARIO 3: The Persistent Adversary"));
+        broadcastUpdate("log", Map.of("message", "OBJECTIVE: Prove the system punishes repeat offenders with exponentially harder challenges."));
+        
+        DetectionEngine engine = new DetectionEngine(policyManager);
+        String persistentBotIp = "99.88.77.66";
+
+        // --- FIRST OFFENSE ---
+        broadcastUpdate("log", Map.of("message", "\nPHASE 1: Attacker begins with a high-level attack (150 RPS)."));
+        for (int i = 0; i < 2; i++) {
+            List<Request> firstAttack = simulator.simulateDumbBotAttack(persistentBotIp, 150);
+            for (Request req : firstAttack) {
+                engine.processRequest(req);
+            }
+            Thread.sleep(1000);
+            IPProfile p = engine.getProfile(persistentBotIp);
+            broadcastUpdate("status", createStatusMap(persistentBotIp, p, p.getCurrentSeverity(), "Confirming threat..."));
+        }
+        
+        IPProfile profile = engine.getProfile(persistentBotIp);
+        // DEFINITIVE FIX: Use Difficulty 5 for a guaranteed noticeable pause.
+        int difficulty1 = 5; 
+        broadcastUpdate("log", Map.of("message", "[MITIGATION] Threat Confirmed. Issuing Challenge (Difficulty " + difficulty1 + "). Strike Count: " + profile.getStrikeCount()));
+        solveAndBroadcast(challengeService, difficulty1);
+
+        profile.setVerified(5000); 
+        profile.incrementStrikeCount(); 
+        broadcastUpdate("log", Map.of("message", "[STATUS] Attacker is now VERIFIED but has 1 STRIKE.\n"));
+        Thread.sleep(3000);
+
+        // --- SECOND OFFENSE (THE RE-ATTACK) ---
+        broadcastUpdate("log", Map.of("message", "PHASE 2: Attacker immediately re-attacks with a CRITICAL flood (250 RPS)."));
+        for (int i = 0; i < 2; i++) {
+            List<Request> secondAttack = simulator.simulateDumbBotAttack(persistentBotIp, 250);
+             for (Request req : secondAttack) {
+                engine.processRequest(req);
+            }
+            Thread.sleep(1000);
+            IPProfile p = engine.getProfile(persistentBotIp);
+            broadcastUpdate("status", createStatusMap(persistentBotIp, p, p.getCurrentSeverity(), "Confirming repeat offense..."));
+        }
+
+        profile = engine.getProfile(persistentBotIp);
+        // DEFINITIVE FIX: Use Difficulty 7 for a guaranteed, multi-second solve time.
+        int difficulty2 = 7;
+        broadcastUpdate("log", Map.of("message", "[MITIGATION] Punitive Escalation! Issuing Challenge (Difficulty " + difficulty2 + "). Strike Count: " + profile.getStrikeCount()));
+        solveAndBroadcast(challengeService, difficulty2);
+
+        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully punished the repeat offender with an exponentially harder challenge. Test PASSED.\n"));
+    }
+
+    private void solveAndBroadcast(ChallengeService cs, int difficulty) {
+        broadcastUpdate("log", Map.of("message", "[ATTACKER SIM] Brute-forcing solution... (This may take a moment)"));
+        long startTime = System.currentTimeMillis();
+        Challenge challenge = cs.createChallenge(difficulty);
+        String solution = cs.solveChallenge(challenge);
+        long endTime = System.currentTimeMillis();
+        double timeTaken = (endTime - startTime) / 1000.0;
+        String resultLog = String.format("Solution found in %.2f seconds.", timeTaken);
+        broadcastUpdate("solve", Map.of("message", resultLog));
+    }
+
+    private Map<String, Object> createStatusMap(String ip, IPProfile profile, int actionableSeverity, String statusMsg) {
+        if (profile == null) {
+             return Map.of("ip", ip, "rps", "0.00", "repetition", "0.00", "duration", 0, "currentSeverity", 0, "actionableSeverity", 0, "status", statusMsg);
+        }
+        return Map.of(
             "ip", ip,
             "rps", String.format("%.2f", profile.getCurrentRPS(10)),
             "repetition", String.format("%.2f", profile.getRepetitionScore()),
             "duration", profile.getSessionDurationSeconds(),
-            "currentSeverity", currentSeverity,
+            "currentSeverity", profile.getCurrentSeverity(),
             "actionableSeverity", actionableSeverity,
             "status", statusMsg
         );
-        broadcastUpdate(type, data);
+    }
+    
+    private void broadcastUpdate(String type, Map<String, Object> data) {
+        String jsonMessage = gson.toJson(Map.of("type", type, "data", data));
+        wsContexts.stream()
+            .filter(ctx -> ctx.session.isOpen())
+            .forEach(ctx -> ctx.send(jsonMessage));
     }
 }
