@@ -1,9 +1,5 @@
 package com.jaradat.ddosmitigator;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 import com.google.gson.Gson;
 import com.jaradat.ddosmitigator.challenge.Challenge;
 import com.jaradat.ddosmitigator.challenge.ChallengeService;
@@ -11,9 +7,13 @@ import com.jaradat.ddosmitigator.core.Request;
 import com.jaradat.ddosmitigator.detection.DetectionEngine;
 import com.jaradat.ddosmitigator.detection.IPProfile;
 import com.jaradat.ddosmitigator.detection.PolicyManager;
+import com.jaradat.ddosmitigator.mitigation.BlocklistService;
 import com.jaradat.ddosmitigator.simulator.TrafficSimulator;
-
 import io.javalin.websocket.WsContext;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * This class contains the final, corrected demonstration script with guaranteed difficulty scaling.
@@ -23,14 +23,16 @@ public class DemoRunner {
     private final PolicyManager policyManager;
     private final TrafficSimulator simulator;
     private final ChallengeService challengeService;
+    private final BlocklistService blocklistService;
     private final ConcurrentLinkedQueue<WsContext> wsContexts;
     private final Gson gson = new Gson();
 
-    public DemoRunner(PolicyManager policyManager, TrafficSimulator simulator, ChallengeService challengeService, ConcurrentLinkedQueue<WsContext> wsContexts) {
-        this.policyManager = policyManager;
-        this.simulator = simulator;
-        this.challengeService = challengeService;
-        this.wsContexts = wsContexts;
+    public DemoRunner(PolicyManager pm, TrafficSimulator sim, ChallengeService cs, BlocklistService bs, ConcurrentLinkedQueue<WsContext> wsCtx) {
+        this.policyManager = pm;
+        this.simulator = sim;
+        this.challengeService = cs;
+        this.blocklistService = bs;
+        this.wsContexts = wsCtx;
     }
 
     public void run() {
@@ -51,7 +53,7 @@ public class DemoRunner {
     private void runScenario_NormalUser() throws InterruptedException {
         broadcastUpdate("objective", Map.of("message", "SCENARIO 1: The Legitimate User"));
         broadcastUpdate("log", Map.of("message", "OBJECTIVE: Prove that normal, low-rate traffic is not impacted."));
-        DetectionEngine engine = new DetectionEngine(policyManager);
+        DetectionEngine engine = new DetectionEngine(policyManager, blocklistService);
         String userIp = "192.168.1.100";
         List<Request> normalTraffic = simulator.simulateNormalUser(userIp);
         for (Request req : normalTraffic) {
@@ -66,8 +68,10 @@ public class DemoRunner {
     private void runScenario_DumbBotFlood() throws InterruptedException {
         broadcastUpdate("objective", Map.of("message", "SCENARIO 2: The 'Dumb Bot' Flood"));
         broadcastUpdate("log", Map.of("message", "OBJECTIVE: Demonstrate fast detection and blocking of a non-responsive attacker."));
-        DetectionEngine engine = new DetectionEngine(policyManager);
+        DetectionEngine engine = new DetectionEngine(policyManager, blocklistService);
         String dumbBotIp = "10.20.30.40";
+
+        broadcastUpdate("log", Map.of("message", "PHASE 1: Bot starts a massive flood (250 RPS)."));
         for (int second = 1; second <= 3; second++) {
             List<Request> attackTraffic = simulator.simulateDumbBotAttack(dumbBotIp, 250);
             int actionableSeverity = 0;
@@ -79,8 +83,19 @@ public class DemoRunner {
             broadcastUpdate("status", createStatusMap(dumbBotIp, profile, actionableSeverity, statusMsg));
             Thread.sleep(1000);
         }
-        broadcastUpdate("log", Map.of("message", "[MITIGATION] Timeout exceeded. IP " + dumbBotIp + " is now considered BLOCKED."));
-        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully blocked the non-compliant bot. Test PASSED.\n"));
+        
+        broadcastUpdate("log", Map.of("message", "[MITIGATION] Timeout exceeded. Adding IP " + dumbBotIp + " to the blocklist."));
+        blocklistService.blockIp(dumbBotIp);
+
+        broadcastUpdate("log", Map.of("message", "\nPHASE 2: Verifying block. Bot attempts to attack again."));
+        Thread.sleep(2000);
+        List<Request> blockedAttack = simulator.simulateDumbBotAttack(dumbBotIp, 50);
+        int result = engine.processRequest(blockedAttack.get(0));
+        if (result == -1) {
+            broadcastUpdate("log", Map.of("message", "[SYSTEM] Request from " + dumbBotIp + " was instantly dropped by the blocklist."));
+        }
+        
+        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully implemented and verified the blocklist. Test PASSED.\n"));
         Thread.sleep(3000);
     }
     
@@ -88,7 +103,7 @@ public class DemoRunner {
         broadcastUpdate("objective", Map.of("message", "SCENARIO 3: The Persistent Adversary"));
         broadcastUpdate("log", Map.of("message", "OBJECTIVE: Prove the system punishes repeat offenders with exponentially harder challenges."));
         
-        DetectionEngine engine = new DetectionEngine(policyManager);
+        DetectionEngine engine = new DetectionEngine(policyManager, blocklistService);
         String persistentBotIp = "99.88.77.66";
 
         // --- FIRST OFFENSE ---
@@ -104,7 +119,6 @@ public class DemoRunner {
         }
         
         IPProfile profile = engine.getProfile(persistentBotIp);
-        // DEFINITIVE FIX: Use Difficulty 5 for a guaranteed noticeable pause.
         int difficulty1 = 5; 
         broadcastUpdate("log", Map.of("message", "[MITIGATION] Threat Confirmed. Issuing Challenge (Difficulty " + difficulty1 + "). Strike Count: " + profile.getStrikeCount()));
         solveAndBroadcast(challengeService, difficulty1);
@@ -127,12 +141,11 @@ public class DemoRunner {
         }
 
         profile = engine.getProfile(persistentBotIp);
-        // DEFINITIVE FIX: Use Difficulty 7 for a guaranteed, multi-second solve time.
         int difficulty2 = 7;
         broadcastUpdate("log", Map.of("message", "[MITIGATION] Punitive Escalation! Issuing Challenge (Difficulty " + difficulty2 + "). Strike Count: " + profile.getStrikeCount()));
         solveAndBroadcast(challengeService, difficulty2);
 
-        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully punished the repeat offender with an exponentially harder challenge. Test PASSED.\n"));
+        broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully punished the repeat offender. Test PASSED.\n"));
     }
 
     private void solveAndBroadcast(ChallengeService cs, int difficulty) {

@@ -1,17 +1,15 @@
 package com.jaradat.ddosmitigator;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 import com.jaradat.ddosmitigator.challenge.ChallengeService;
-import com.jaradat.ddosmitigator.detection.PolicyManager;
+import com.jaradat.ddosmitigator.detection.PolicyManager; // Import the new service
+import com.jaradat.ddosmitigator.mitigation.BlocklistService;
 import com.jaradat.ddosmitigator.simulator.TrafficSimulator;
+
 import io.javalin.Javalin;
 import io.javalin.websocket.WsContext;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
-
-/**
- * This class is the main entry point for the web dashboard.
- * Its only responsibility is to start the web server and manage WebSocket connections.
- */
 public class DashboardApp {
 
     private static final ConcurrentLinkedQueue<WsContext> wsContexts = new ConcurrentLinkedQueue<>();
@@ -21,6 +19,7 @@ public class DashboardApp {
         PolicyManager policyManager = new PolicyManager();
         TrafficSimulator simulator = new TrafficSimulator();
         ChallengeService challengeService = new ChallengeService();
+        BlocklistService blocklistService = new BlocklistService(); // Create the new service
 
         // --- Start the web server ---
         Javalin app = Javalin.create(config -> {
@@ -33,8 +32,8 @@ public class DashboardApp {
                 System.out.println("[WebSocket] New dashboard connected: " + ctx.sessionId());
                 wsContexts.add(ctx);
                 
-                // When a browser connects, create and run the demo in a new thread.
-                DemoRunner demo = new DemoRunner(policyManager, simulator, challengeService, wsContexts);
+                // Pass the new blocklist service to the DemoRunner
+                DemoRunner demo = new DemoRunner(policyManager, simulator, challengeService, blocklistService, wsContexts);
                 new Thread(demo::run).start();
             });
 
