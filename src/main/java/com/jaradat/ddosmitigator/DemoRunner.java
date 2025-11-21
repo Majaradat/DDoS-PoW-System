@@ -16,7 +16,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * This class contains the final, corrected demonstration script with guaranteed difficulty scaling.
+ * This class runs the demonstration scenarios and calculates the
+ * computational asymmetry (Cost Flip) between attacker and defender.
  */
 public class DemoRunner {
 
@@ -119,7 +120,7 @@ public class DemoRunner {
         }
         
         IPProfile profile = engine.getProfile(persistentBotIp);
-        int difficulty1 = 5; 
+        int difficulty1 = 4; // Moderate difficulty
         broadcastUpdate("log", Map.of("message", "[MITIGATION] Threat Confirmed. Issuing Challenge (Difficulty " + difficulty1 + "). Strike Count: " + profile.getStrikeCount()));
         solveAndBroadcast(challengeService, difficulty1);
 
@@ -141,22 +142,50 @@ public class DemoRunner {
         }
 
         profile = engine.getProfile(persistentBotIp);
-        int difficulty2 = 7;
+        int difficulty2 = 6; // High difficulty (Exponential increase in cost)
         broadcastUpdate("log", Map.of("message", "[MITIGATION] Punitive Escalation! Issuing Challenge (Difficulty " + difficulty2 + "). Strike Count: " + profile.getStrikeCount()));
         solveAndBroadcast(challengeService, difficulty2);
 
         broadcastUpdate("conclusion", Map.of("message", "CONCLUSION: System successfully punished the repeat offender. Test PASSED.\n"));
     }
 
+    /**
+     * This method demonstrates the "Cost Flip".
+     * It measures how long it takes to SOLVE vs how long it takes to VERIFY.
+     */
     private void solveAndBroadcast(ChallengeService cs, int difficulty) {
-        broadcastUpdate("log", Map.of("message", "[ATTACKER SIM] Brute-forcing solution... (This may take a moment)"));
-        long startTime = System.currentTimeMillis();
+        broadcastUpdate("log", Map.of("message", "[ATTACKER SIM] Brute-forcing difficulty " + difficulty + "... (CPU Load Increasing)"));
+        
+        // 1. Measure Attack Cost (Brute Force)
+        long startSolve = System.nanoTime();
         Challenge challenge = cs.createChallenge(difficulty);
         String solution = cs.solveChallenge(challenge);
-        long endTime = System.currentTimeMillis();
-        double timeTaken = (endTime - startTime) / 1000.0;
-        String resultLog = String.format("Solution found in %.2f seconds.", timeTaken);
-        broadcastUpdate("solve", Map.of("message", resultLog));
+        long endSolve = System.nanoTime();
+
+        // 2. Measure Defense Cost (Single Hash)
+        long startVerify = System.nanoTime();
+        boolean isValid = cs.verifyChallenge(challenge, solution);
+        long endVerify = System.nanoTime();
+
+        // 3. Calculate the Asymmetry
+        double attackerTimeMs = (endSolve - startSolve) / 1_000_000.0;
+        double defenderTimeMs = (endVerify - startVerify) / 1_000_000.0;
+        
+        // Avoid division by zero if verification is too fast
+        if (defenderTimeMs == 0) defenderTimeMs = 0.001; 
+        
+        double costRatio = attackerTimeMs / defenderTimeMs;
+
+        String proofLog = String.format(
+            "COST FLIP PROOF:\n" +
+            "   > Attacker Time: %.2f ms\n" +
+            "   > Defender Time: %.4f ms\n" +
+            "   > Asymmetry:     %.0fx Harder for Attacker", 
+            attackerTimeMs, defenderTimeMs, costRatio
+        );
+        
+        // Send as 'solve' type so it gets the special styling in the dashboard
+        broadcastUpdate("solve", Map.of("message", proofLog));
     }
 
     private Map<String, Object> createStatusMap(String ip, IPProfile profile, int actionableSeverity, String statusMsg) {

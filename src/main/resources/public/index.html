@@ -1,259 +1,418 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DDoS Mitigation System - Live Demo</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DDoS Mitigation System - SOC Dashboard</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+
     <style>
         :root {
-            --blue-dark: #1E3A8A;
-            --blue-primary: #3B82F6;
-            --blue-light: #60A5FA;
-            --glass: #F0F9FF;
-            --red-alert: #DC2626;
-            --text: #e5e7eb;
-            --text-muted: #9ca3af;
-            --green-ok: #22c55e;
-            --yellow-warn: #facc15;
-            --orange-high: #fb923c;
+            --bg-1: #0a0e13;
+            --bg-2: linear-gradient(180deg, #0f141a, #0a0e13);
+            --panel-border: rgba(255, 255, 255, 0.07);
+            --muted: #8899a9;
+            --white: #ffffff;
+            --neon-blue: #3b82f6;
+            --neon-cyan: #22d3ee; /* Brightened cyan for better visibility */
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+
+            --radius: 12px;
+            --card-padding: 24px;
+            --shadow-1: 0 8px 24px rgba(0, 0, 0, 0.3);
         }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, var(--blue-dark) 0%, #111827 100%);
+        /* Reset & Base */
+        * { box-sizing: border-box; }
+        html, body {
+            height: 100%;
             margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            color: var(--muted);
+            background: var(--bg-2);
+        }
+
+        /* Page Layout */
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
             padding: 24px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 24px;
             min-height: 100vh;
+        }
+
+        /* Top Bar */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(6, 182, 212, 0.1));
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.03);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .logo .mark {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--neon-cyan);
+            font-weight: 700;
+            font-size: 18px;
+            text-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+        }
+        .title {
+            color: var(--white);
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .subtitle {
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        /* Main Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+        .left-column {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            color: var(--text);
+            gap: 24px;
         }
-
-        .header {
-            text-align: center;
-            margin-bottom: 32px;
-            position: relative;
-        }
-
-        .header h1 {
-            font-size: 2.8em;
-            font-weight: 700;
-            color: var(--glass);
-            margin: 0;
-            letter-spacing: -1px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1200px; /* Adjusted max-width */
-            display: grid;
-            grid-template-columns: 1fr 2fr; /* Adjusted grid layout */
+        .right-column {
+            grid-column: 2 / 3;
+            grid-row: 1 / 3;
+            display: flex;
+            flex-direction: column;
             gap: 24px;
         }
 
+        /* Card System */
         .card {
-            background: rgba(240, 249, 255, 0.05);
-            border: 1px solid rgba(240, 249, 255, 0.1);
-            border-radius: 20px;
-            padding: 24px;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.3), rgba(15, 23, 42, 0.3));
+            border-radius: var(--radius);
+            border: 1px solid var(--panel-border);
+            box-shadow: var(--shadow-1);
+            backdrop-filter: blur(12px);
+            overflow: hidden;
         }
-
-        h2 {
-            font-size: 1.2em;
+        .card-header {
+            padding: 16px var(--card-padding);
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid var(--panel-border);
+        }
+        .card-title {
+            font-size: 16px;
             font-weight: 600;
-            margin: 0 0 20px 0;
-            color: var(--glass);
-            border-bottom: 1px solid rgba(240, 249, 255, 0.1);
-            padding-bottom: 8px;
+            color: var(--white);
+        }
+        .card-body {
+            padding: var(--card-padding);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
 
-        /* STATUS PANEL */
-        .status-grid {
+        /* System Health Card */
+        .health-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+        }
+        .status-text {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--white);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--success);
+            transition: background-color 0.3s ease;
+        }
+        .status-indicator.alert {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* Gauge Styling */
+        .gauge-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 120px;
+        }
+        .gauge-svg {
+            width: 100%;
+            max-width: 220px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+        .gauge-text-overlay {
+            position: absolute;
+            bottom: 15px;
+            text-align: center;
+        }
+        .gauge-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .gauge-value {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--white);
+            margin-top: 4px;
+            transition: color 0.3s ease;
+        }
+        
+        /* Metrics Card */
+        .metric-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
         }
-        .status-item {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(240,249,255,0.08);
-            border-radius: 12px;
-            padding: 12px;
-            transition: background 0.3s ease;
-        }
-        .status-item strong {
-            display: block;
-            color: var(--text-muted);
-            font-size: 0.75em;
-            font-weight: 500;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-        .status-item span {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: var(--glass);
-        }
-        
-        #severity-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        #severity-item strong {
-             margin-bottom: 0;
-        }
-
-        #status-ip { font-size: 1.1em; font-family: 'Roboto Mono', monospace; }
-
-        /* SEVERITY GAUGE */
-        .gauge-container {
-            position: relative;
-            width: 100%;
-            height: 70px; /* Adjusted height */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 4px; /* Reduced margin */
-        }
-        .gauge-svg {
-            width: 140px; /* Resized */
-            height: 80px; /* Resized */
-        }
-        .gauge-track, .gauge-value {
-            fill: none;
-            stroke-width: 14; /* Made thicker */
-            stroke-linecap: round;
-        }
-        .gauge-track {
-            stroke: rgba(255, 255, 255, 0.1);
-        }
-        .gauge-value {
-            transition: stroke-dashoffset 0.5s ease-out, stroke 0.5s ease-out;
-        }
-        .gauge-text {
-            position: absolute;
-            top: 60%; /* Adjusted for new size */
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.2em; /* CORRECTED FONT SIZE */
-            font-weight: 700;
-            color: var(--glass);
-        }
-
-        #system-status-card {
-            border: 1px solid transparent;
-            margin-top: 16px;
-            border-radius: 12px;
-            padding: 12px;
-            background: rgba(255,255,255,0.04);
-            transition: all 0.5s ease;
-        }
-        #system-status-card.alert {
-            background: rgba(220, 38, 38, 0.15);
-            border-color: var(--red-alert);
-        }
-
-        /* LOGS */
-        .log-container {
-            grid-column: 1 / -1;
-            height: 350px;
-            overflow-y: auto;
-            font-family: 'Roboto Mono', monospace;
-            font-size: 0.9em;
-            background: rgba(240, 249, 255, 0.05);
-            border-radius: 16px;
+        .metric {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
             padding: 16px;
         }
-        .log-entry { margin-bottom: 8px; white-space: pre-wrap; }
-        .log-objective { color: var(--blue-light); font-weight: 500; }
-        .log-conclusion { color: #4ade80; font-weight: 600; }
-        .log-mitigation { color: #facc15; font-weight: 500; }
-        .log-solve { color: #f472b6; font-weight: 500; }
+        .metric .label {
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .metric .value {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 22px;
+            color: var(--white);
+            font-weight: 700;
+        }
+        #status-ip {
+            font-family: 'Roboto Mono', monospace;
+            color: var(--neon-cyan);
+            font-size: 14px;
+            font-weight: 500;
+        }
 
-        /* CHART */
-        canvas {
-            border-radius: 12px;
+        /* Controls Card */
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--neon-blue);
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.25));
+            color: var(--white);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .btn:hover {
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.35));
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3), 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+        }
+        .btn:active {
+             transform: translateY(0);
+        }
+
+
+        /* Chart & Logs */
+        .chart-card-body { padding: 16px; }
+        #rpsChart {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .log-container {
+            height: 250px;
+            overflow-y: auto;
+            padding: 20px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 10px;
+        }
+        .log-entry { margin-bottom: 8px; line-height: 1.6; }
+        .log-objective { color: var(--neon-blue); }
+        .log-conclusion { color: var(--success); }
+        .log-mitigation { color: var(--warning); }
+        .log-solve { color: var(--danger); font-weight: 600; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+            .right-column { grid-column: 1 / -1; grid-row: auto; }
+            .left-column { order: 2; }
         }
     </style>
 </head>
 <body>
+    <div class="page">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo"><div class="mark">SOC</div></div>
+                <div>
+                    <div class="title">DDoS Mitigation System</div>
+                    <div class="subtitle">Live Security Operations Dashboard</div>
+                </div>
+            </div>
+        </div>
 
-    <div class="header">
-        <h1>DDoS Mitigation System</h1>
-    </div>
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Left Column -->
+            <div class="left-column">
+                
+                <div class="card">
+                    <div class="card-header"><div class="card-title">System Health</div></div>
+                    <div class="card-body">
+                        <div class="health-status">
+                            <div class="status-text">
+                                <div id="status-indicator" class="status-indicator"></div>
+                                <span id="system-status">Awaiting Demo Start...</span>
+                            </div>
+                        </div>
+                        <div class="gauge-container">
+                            <svg class="gauge-svg" viewBox="0 0 140 80">
+                                <path d="M 10 70 A 60 60 0 0 1 130 70" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round"></path>
+                                <path id="severity-gauge-value" d="M 10 70 A 60 60 0 0 1 130 70" fill="none" stroke="var(--success)" stroke-width="16" stroke-linecap="round" style="transition: stroke-dashoffset 0.5s ease, stroke 0.5s ease;"></path>
+                            </svg>
+                            <div class="gauge-text-overlay">
+                                <div class="gauge-label">Severity</div>
+                                <div id="severity-gauge-text" class="gauge-value">Level 0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    <div class="container">
-        <!-- Status Card -->
-        <div class="card" id="status-card">
-            <h2>Live Threat Status</h2>
-            <div id="status-ip"><strong>IP Address:</strong> <span>N/A</span></div>
-            <div class="status-grid">
-                <div class="status-item"><strong>RPS</strong> <span id="status-rps">0.00</span></div>
-                <div class="status-item"><strong>Repetition</strong> <span id="status-repetition">0.00</span></div>
-                <div class="status-item"><strong>Duration (s)</strong> <span id="status-duration">0</span></div>
-                <div class="status-item" id="severity-item">
-                    <strong>Severity</strong>
-                    <!-- NEW GAUGE -->
-                    <div class="gauge-container">
-                        <svg class="gauge-svg" viewBox="0 0 140 70">
-                            <path class="gauge-track" d="M 10 60 A 60 60 0 0 1 130 60"></path>
-                            <path class="gauge-value" id="severity-gauge-value" d="M 10 60 A 60 60 0 0 1 130 60"></path>
-                        </svg>
-                        <div class="gauge-text" id="severity-gauge-text">Level 0</div>
+                <div class="card">
+                    <div class="card-header"><div class="card-title">Live Metrics</div></div>
+                    <div class="card-body">
+                        <div class="metric">
+                            <div class="label">Target IP Address</div>
+                            <div id="status-ip" class="value">N/A</div>
+                        </div>
+                        <div class="metric-grid">
+                            <div class="metric"><div class="label">RPS</div><div id="status-rps" class="value">0</div></div>
+                            <div class="metric"><div class="label">Repetition</div><div id="status-repetition" class="value">0</div></div>
+                        </div>
+                         <div class="metric"><div class="label">Attack Duration</div><div id="status-duration" class="value">0s</div></div>
+                    </div>
+                </div>
+                
+                 <div class="card">
+                    <div class="card-header"><div class="card-title">Controls</div></div>
+                    <div class="card-body">
+                        <button class="btn" onclick="startDemo()">Start Demo</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column -->
+            <div class="right-column">
+                <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="card-header"><div class="card-title">Real-time Traffic (RPS)</div></div>
+                    <div class="chart-card-body" style="flex: 1; position: relative;">
+                        <canvas id="rpsChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><div class="card-title">System Logs</div></div>
+                    <div class="card-body">
+                       <div class="log-container" id="log-output">
+                           <div class="log-entry log-objective">Awaiting Demo Start...</div>
+                       </div>
                     </div>
                 </div>
             </div>
-            <div class="status-item" id="system-status-card">
-                <strong>System Status</strong>
-                <span id="system-status" style="font-size: 1.1em;">Awaiting Demo Start...</span>
-            </div>
-        </div>
-
-        <!-- Chart Card -->
-        <div class="card">
-            <h2>Requests Per Second (Live)</h2>
-            <canvas id="rpsChart"></canvas>
-        </div>
-
-        <!-- Logs -->
-        <div class="log-container card" id="log-output">
-            <div class="log-entry log-objective">Awaiting WebSocket Connection...</div>
         </div>
     </div>
 
     <script>
+        function startDemo() {
+            const logOutput = document.getElementById('log-output');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-objective`;
+            logEntry.textContent = `> Demo sequence initiated by user.`;
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+            
+            if (!ws || ws.readyState === WebSocket.CLOSED) {
+                connectWebSocket();
+            }
+        }
+        
+        let ws;
+
         document.addEventListener('DOMContentLoaded', () => {
             const logOutput = document.getElementById('log-output');
-            const statusIpSpan = document.querySelector('#status-ip span');
+            const statusIpSpan = document.getElementById('status-ip');
             const statusRpsSpan = document.getElementById('status-rps');
             const statusRepetitionSpan = document.getElementById('status-repetition');
             const statusDurationSpan = document.getElementById('status-duration');
             const systemStatusSpan = document.getElementById('system-status');
-            const systemStatusCard = document.getElementById('system-status-card');
+            const statusIndicator = document.getElementById('status-indicator');
             
-            // New Gauge Elements
             const gaugeValuePath = document.getElementById('severity-gauge-value');
             const gaugeText = document.getElementById('severity-gauge-text');
             const circumference = gaugeValuePath.getTotalLength();
-            const severityColors = ['var(--green-ok)', 'var(--yellow-warn)', 'var(--orange-high)', 'var(--red-alert)', 'var(--red-alert)'];
+            const severityColors = ['var(--success)', '#dacc13', 'var(--warning)', '#f5700b', 'var(--danger)'];
             
             gaugeValuePath.style.strokeDasharray = `${circumference} ${circumference}`;
             gaugeValuePath.style.strokeDashoffset = circumference;
-
 
             let chart;
             const chartData = {
                 labels: [],
                 datasets: [{
                     label: 'RPS',
-                    borderColor: 'var(--blue-primary)',
+                    borderColor: 'var(--white)', // White line for contrast
+                    pointBackgroundColor: 'var(--white)',
+                    pointBorderColor: 'var(--white)',
+                    pointHoverRadius: 6,
                     data: [],
                     fill: true,
                     tension: 0.4
@@ -262,9 +421,10 @@
 
             function initChart() {
                 const ctx = document.getElementById('rpsChart').getContext('2d');
-                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.6)');
-                gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+                // MODIFIED: Gradient changed to smooth white with low opacity
+                const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.clientHeight);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
                 chartData.datasets[0].backgroundColor = gradient;
 
                 chart = new Chart(ctx, {
@@ -272,11 +432,28 @@
                     data: chartData,
                     options: {
                         scales: {
-                            y: { beginAtZero: true, ticks: { color: 'var(--text)' }, grid: { color: 'rgba(240, 249, 255, 0.05)' } },
-                            x: { ticks: { color: 'var(--text)' }, grid: { color: 'rgba(240, 249, 255, 0.05)' } }
+                            // MODIFIED: Axis label colors
+                            y: { 
+                                beginAtZero: true, 
+                                ticks: { color: '#22d3ee' }, 
+                                grid: { color: 'rgba(255,255,255,0.05)' } 
+                            },
+                            x: { 
+                                ticks: { 
+                                    color: '#22d3ee',
+                                    // MODIFIED: Prevent labels from tilting
+                                    maxRotation: 0,
+                                    minRotation: 0,
+                                    autoSkip: true,
+                                    maxTicksLimit: 8 // Ensures good spacing
+                                }, 
+                                grid: { color: 'rgba(255,255,255,0.05)' } 
+                            }
                         },
                         plugins: { legend: { display: false } },
-                        animation: { duration: 500 }
+                        animation: { duration: 500 },
+                        maintainAspectRatio: false,
+                        responsive: true
                     }
                 });
             }
@@ -285,7 +462,7 @@
             function addLog(message, type) {
                 const logEntry = document.createElement('div');
                 logEntry.className = `log-entry log-${type}`;
-                logEntry.textContent = `> ${message}`;
+                logEntry.innerHTML = `&gt; ${message}`;
                 logOutput.appendChild(logEntry);
                 logOutput.scrollTop = logOutput.scrollHeight;
             }
@@ -294,23 +471,31 @@
                 statusIpSpan.textContent = data.ip;
                 statusRpsSpan.textContent = data.rps;
                 statusRepetitionSpan.textContent = data.repetition;
-                statusDurationSpan.textContent = data.duration;
+                statusDurationSpan.textContent = `${data.duration}s`;
 
                 const severityLevel = data.actionableSeverity > 0 ? data.actionableSeverity : data.currentSeverity;
                 
-                // Update Gauge
-                const percent = severityLevel / 4;
+                const percent = Math.min(severityLevel / 4, 1);
                 const offset = circumference * (1 - percent);
                 gaugeValuePath.style.strokeDashoffset = offset;
                 gaugeValuePath.style.stroke = severityColors[severityLevel];
-                gaugeText.textContent = `Level ${severityLevel}`;
+                gaugeText.textContent = 'Level ' + severityLevel;
                 gaugeText.style.color = severityColors[severityLevel];
                 
                 systemStatusSpan.textContent = data.status;
-                systemStatusCard.classList.toggle('alert', severityLevel > 0);
+                if (severityLevel > 1) {
+                    statusIndicator.style.backgroundColor = 'var(--danger)';
+                    statusIndicator.classList.add('alert');
+                } else if (severityLevel > 0) {
+                     statusIndicator.style.backgroundColor = 'var(--warning)';
+                     statusIndicator.classList.remove('alert');
+                } else {
+                    statusIndicator.style.backgroundColor = 'var(--success)';
+                    statusIndicator.classList.remove('alert');
+                }
 
                 const time = new Date().toLocaleTimeString();
-                if (chartData.labels.length > 20) {
+                if (chartData.labels.length > 30) {
                     chartData.labels.shift();
                     chartData.datasets[0].data.shift();
                 }
@@ -319,43 +504,48 @@
                 chart.update();
             }
 
-            const ws = new WebSocket(`ws://${window.location.host}/dashboard-updates`);
+            window.connectWebSocket = function() {
+                ws = new WebSocket(`ws://${window.location.host}/dashboard-updates`);
 
-            ws.onopen = () => {
-                logOutput.innerHTML = '';
-                addLog('WebSocket Connection Established. Starting demo...', 'objective');
-            };
+                ws.onopen = () => {
+                    logOutput.innerHTML = '';
+                    addLog('WebSocket Connection Established. Monitoring for events...', 'conclusion');
+                };
 
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    switch(msg.type) {
+                        case 'log':
+                        case 'conclusion':
+                            addLog(msg.data.message, msg.type);
+                            break;
+                        case 'objective':
+                            addLog(`--- ${msg.data.message} ---`, 'objective');
+                            break;
+                        case 'solve':
+                            addLog(`<strong>[MITIGATION]</strong> ${msg.data.message}`, 'solve');
+                            break;
+                        case 'status':
+                            updateStatus(msg.data);
+                            break;
+                    }
+                };
+                
+                ws.onclose = () => {
+                    addLog('WebSocket Connection Closed. Demo finished.', 'conclusion');
+                    systemStatusSpan.textContent = "Demo Finished.";
+                    statusIndicator.style.backgroundColor = 'var(--muted)';
+                    statusIndicator.classList.remove('alert');
+                };
 
-                switch(msg.type) {
-                    case 'log':
-                    case 'conclusion':
-                        addLog(msg.data.message, msg.type);
-                        break;
-                    case 'objective':
-                        addLog(`\n--- ${msg.data.message} ---`, 'objective');
-                        break;
-                    case 'solve':
-                        addLog(`[SYSTEM] ${msg.data.message}`, 'solve');
-                        break;
-                    case 'status':
-                        updateStatus(msg.data);
-                        break;
-                }
+                ws.onerror = () => {
+                    addLog('WebSocket Error: Could not connect to backend.', 'mitigation');
+                };
             };
             
-            ws.onclose = () => {
-                addLog('WebSocket Connection Closed. Demo finished.', 'conclusion');
-                systemStatusSpan.textContent = "Demo Finished.";
-                systemStatusCard.classList.remove('alert');
-            };
-
-            ws.onerror = (error) => {
-                addLog('WebSocket Error: Could not connect to backend.', 'mitigation');
-            };
+            connectWebSocket();
         });
     </script>
 </body>
 </html>
+
