@@ -40,9 +40,9 @@ public class DemoRunner {
 
     public void runScenario(String mode, int difficulty) {
         try {
-            // FIX: Send a reset signal to clear the gauge and metrics
+            // Send reset signal
             broadcastUpdate("reset", Map.of("message", "Resetting dashboard..."));
-            Thread.sleep(200); // Short pause to allow UI to clear
+            Thread.sleep(200);
 
             switch (mode) {
                 case "legit":
@@ -74,6 +74,12 @@ public class DemoRunner {
         }
     }
 
+    private int calculateDifficulty(int severityLevel, int strikeCount) {
+        // FIX: Ensure severity is at least 1 if we are issuing a challenge.
+        int effectiveSeverity = Math.max(severityLevel, 1);
+        return (effectiveSeverity + 2) + strikeCount;
+    }
+
     // --- SCENARIO 1: LEGIT USER ---
     private void runLegitUser() throws InterruptedException {
         DetectionEngine engine = new DetectionEngine(policyManager, blocklistService);
@@ -93,7 +99,7 @@ public class DemoRunner {
         broadcastUpdate("conclusion", Map.of("message", "Traffic analyzed as Benign. No Challenge issued."));
     }
 
-    // --- SCENARIO 2: LAGGY USER (False Positive Test) ---
+    // --- SCENARIO 2: LAGGY USER ---
     private void runLaggyUser() throws InterruptedException {
         DetectionEngine engine = new DetectionEngine(policyManager, blocklistService);
         String ip = "192.168.1.99";
@@ -102,16 +108,27 @@ public class DemoRunner {
         broadcastUpdate("log", Map.of("message", "Simulating a browser sending a burst of requests (False Positive trigger)..."));
 
         List<Request> burst = simulator.simulateDumbBotAttack(ip, 20); 
-        for (Request req : burst) engine.processRequest(req);
+        int initialSeverity = 0;
+        for (Request req : burst) {
+            initialSeverity = engine.processRequest(req);
+        }
+        
+        // FORCE SEVERITY 1: If we are treating this as a burst, it must be Sev 1 at minimum.
+        if (initialSeverity == 0) initialSeverity = 1;
         
         IPProfile p = engine.getProfile(ip);
         String ipDisplay = ip + " -> " + burst.get(0).getUrl(); 
         
-        broadcastUpdate("status", createStatusMap(ipDisplay, p, p.getCurrentSeverity(), "High Activity Detected"));
-        broadcastUpdate("detection", Map.of("message", "Anomaly Detected! System entering Observation Mode..."));
+        // 1. Combined Alert
+        broadcastUpdate("detection", Map.of("message", "Anomaly Detected (Sev " + initialSeverity + "). Entering 2s Observation Window..."));
+        broadcastUpdate("status", createStatusMap(ipDisplay, p, initialSeverity, "High Activity Detected"));
 
-        Thread.sleep(2500); 
+        // 2. Observation Window
+        Thread.sleep(500); 
+        broadcastUpdate("status", createStatusMap(ipDisplay, p, 1, "Monitoring (Observation Window)"));
+        Thread.sleep(2000); 
         
+        // 3. Result
         broadcastUpdate("status", createStatusMap(ipDisplay, p, 0, "Traffic Normalized"));
         broadcastUpdate("conclusion", Map.of("message", "Observation window passed. User classification reverted to BENIGN."));
     }
@@ -125,26 +142,37 @@ public class DemoRunner {
 
         broadcastUpdate("objective", Map.of("message", "Testing Unresponsive Bot"));
         
+        int severity = 0;
+        // Attack Detected
         for (int i = 0; i < 3; i++) {
             List<Request> traffic = simulator.simulateDumbBotAttack(ip, 100);
-            int severity = 0;
             for(Request req : traffic) {
                 severity = engine.processRequest(req);
             }
-            
             IPProfile p = engine.getProfile(ip);
             broadcastUpdate("status", createStatusMap(ipDisplay, p, severity, "CRITICAL THREAT"));
             Thread.sleep(1000);
         }
 
-        broadcastUpdate("mitigation", Map.of("message", "Threshold breached. Challenge Issued (Difficulty 4). Waiting for solution..."));
-        
-        for(int i=1; i<=3; i++) {
-            broadcastUpdate("log", Map.of("message", "Waiting for response... " + i + "s"));
-            Thread.sleep(1000);
-        }
+        // FORCE SEVERITY 1
+        if (severity == 0) severity = 1;
 
-        broadcastUpdate("block", Map.of("message", "Challenge TIMEOUT. Client failed to provide PoW."));
+        // ADDED: Consistent Observation Alert + Sleep
+        broadcastUpdate("detection", Map.of("message", "Anomaly Detected (Sev " + severity + "). Entering 2s Observation Window..."));
+        Thread.sleep(2000);
+
+        // Issue Challenge
+        int difficulty = calculateDifficulty(severity, 0);
+        // Used effectiveSeverity for display consistency
+        int effectiveSeverity = Math.max(severity, 1);
+        String mitigationMsg = String.format("Attack Confirmed (Sev %d). Issuing Challenge (Diff %d). Waiting for solution...", effectiveSeverity, difficulty);
+        broadcastUpdate("mitigation", Map.of("message", mitigationMsg));
+        
+        // Wait for Solution (Silent 3s)
+        broadcastUpdate("log", Map.of("message", "Applying strict solution window (3s)..."));
+        Thread.sleep(3000);
+
+        broadcastUpdate("block", Map.of("message", "Challenge TIMEOUT. Client failed to provide PoW solution."));
         blocklistService.blockIp(ip);
         broadcastUpdate("conclusion", Map.of("message", "IP " + ip + " has been added to the Blocklist."));
     }
@@ -158,45 +186,68 @@ public class DemoRunner {
         
         broadcastUpdate("objective", Map.of("message", "Testing Persistent Adversary"));
 
+        // --- Phase 1: First Attack ---
         broadcastUpdate("log", Map.of("message", "Phase 1: Initial Flood"));
         List<Request> attack1 = simulator.simulateDumbBotAttack(ip, 150);
         int severity1 = 0;
-        for(Request req : attack1) {
-            severity1 = engine.processRequest(req);
-        }
+        for(Request req : attack1) severity1 = engine.processRequest(req);
+        
+        // FORCE SEVERITY 1
+        if (severity1 == 0) severity1 = 1;
         
         IPProfile p = engine.getProfile(ip);
         broadcastUpdate("status", createStatusMap(ipDisplay, p, severity1, "Confirming Threat...")); 
         
-        broadcastUpdate("mitigation", Map.of("message", "Threat Detected. Issuing Challenge (Diff 4)."));
+        // ADDED: Consistent Observation Alert + Sleep
+        broadcastUpdate("detection", Map.of("message", "Anomaly Detected (Sev " + severity1 + "). Entering 2s Observation Window..."));
+        Thread.sleep(2000);
+
+        // Issue Challenge
+        int diff1 = calculateDifficulty(severity1, p.getStrikeCount());
+        int effectiveSev1 = Math.max(severity1, 1);
+        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed (Sev " + effectiveSev1 + "). Issuing Challenge (Diff " + diff1 + ")."));
         
         // Solve 1
-        executeParallelPoW(4, "SOLVER RESULTS");
-        p.setVerified(5000);
-        p.incrementStrikeCount();
+        executeParallelPoW(diff1, "SOLVER RESULTS");
         
+        // Bot Solves it
+        broadcastUpdate("solve", Map.of("message", "Bot successfully solved the challenge."));
+        
+        p.setVerified(5000);
+        p.incrementStrikeCount(); 
+        
+        // Access Granted
         broadcastUpdate("status", createStatusMap(ipDisplay, p, 0, "Bot Verified (Access Granted)"));
-        broadcastUpdate("log", Map.of("message", "Bot verified. Access granted for 5s. Strike Count: 1"));
+        broadcastUpdate("log", Map.of("message", "Access Granted."));
         Thread.sleep(1000);
 
+        // --- Phase 2: Re-Attack ---
         broadcastUpdate("log", Map.of("message", "Phase 2: Re-attack while Verified"));
         List<Request> attack2 = simulator.simulateDumbBotAttack(ip, 200);
         int severity2 = 0;
-        for(Request req : attack2) {
-            severity2 = engine.processRequest(req);
-        }
+        for(Request req : attack2) severity2 = engine.processRequest(req);
         
+        // FORCE SEVERITY 1
+        if (severity2 == 0) severity2 = 1;
+        
+        // Consistent Observation Alert for Re-Attack + Sleep
+        broadcastUpdate("detection", Map.of("message", "Abnormal Attack Threat Detected (Sev " + severity2 + "). Entering 2s Observation Window..."));
         broadcastUpdate("status", createStatusMap(ipDisplay, p, severity2, "Recidivism Detected"));
+        Thread.sleep(2000);
         
-        broadcastUpdate("mitigation", Map.of("message", "Recidivism Detected! Escalating Difficulty to 6."));
+        broadcastUpdate("log", Map.of("message", "Bot has existing Strike Count of " + p.getStrikeCount() + "."));
+
+        // Issue Harder Challenge
+        int diff2 = calculateDifficulty(severity2, p.getStrikeCount());
+        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed. Escalating to Challenge Level " + diff2 + "."));
         
         // Solve 2
-        executeParallelPoW(6, "SOLVER RESULTS");
+        executeParallelPoW(diff2, "SOLVER RESULTS");
         p.incrementStrikeCount();
-        broadcastUpdate("conclusion", Map.of("message", "Bot verified again but cost was exponentially higher. Strike Count: 2"));
+        broadcastUpdate("conclusion", Map.of("message", "Access Granted. Strike Count is now " + p.getStrikeCount() + ". Cost was exponential."));
     }
 
-    // --- SCENARIO 5: MULTI-THREADED CPU STRESS TEST ---
+    // --- SCENARIO 5: STRESS TEST ---
     private void runParallelStressTest(int difficulty) {
         int cores = Runtime.getRuntime().availableProcessors();
         String startInfo = String.format("Multi-Core CPU Stress Test Initiated.\nEngaging %d cores for Difficulty %d...", cores, difficulty);
@@ -204,7 +255,7 @@ public class DemoRunner {
         executeParallelPoW(difficulty, "STRESS TEST RESULTS");
     }
 
-    // --- SHARED: OPTIMIZED PARALLEL SOLVER ---
+    // --- SHARED SOLVER ---
     private void executeParallelPoW(int difficulty, String resultTitle) {
         int cores = Runtime.getRuntime().availableProcessors();
         Challenge challenge = challengeService.createChallenge(difficulty);
@@ -268,7 +319,6 @@ public class DemoRunner {
         if (defenderSeconds <= 0) defenderSeconds = 0.000001;
 
         String msg = String.format(
-            "PoW Verified & Cost Analyzed\n" +
             "%s:\n" +
             "Cores Utilized: %d (100%% CPU)\n" +
             "Difficulty: %d\n" +
