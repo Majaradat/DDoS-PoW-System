@@ -3,7 +3,8 @@ DDoS Mitigation System (Proof-of-Work)
 
 A Java-based simulation framework demonstrating how Client-Side Proof-of-Work (PoW) can be used to mitigate Application Layer (Layer 7) DDoS attacks by flipping the computational cost asymmetry back onto the attacker.
 
-<img width="1894" height="877" alt="image" src="https://github.com/user-attachments/assets/9d0d47cd-d4df-47a4-a0af-f179c9769c72" />
+<img width="1895" height="877" alt="image" src="https://github.com/user-attachments/assets/f175ce87-8432-48b6-87e9-5cb13ef19a35" />
+
 
 
 🚀 Project Overview
