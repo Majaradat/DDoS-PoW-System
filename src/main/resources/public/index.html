@@ -416,7 +416,7 @@
                     
                     <div class="form-group" id="stress-group" style="display:none;">
                         <label>PoW Difficulty</label>
-                        <input type="number" id="sim-difficulty">
+                        <input type="number" id="sim-difficulty" value="6">
                         <div style="font-size:10px; color:var(--neon-purple); margin-top:4px;">Warning: Level 8+ may freeze the device.</div>
                     </div>
 
@@ -580,6 +580,11 @@
                 addEventCard('normal', 'Connection Established', 'Dashboard linked to mitigation engine.');
                 cmdStatus.textContent = "Connected.";
                 cmdStatus.style.color = "var(--neon-green)";
+                setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ action: "ping" }));
+                    }
+                }, 5000); // Send a ping every 30 seconds
             };
 
             ws.onmessage = (e) => {

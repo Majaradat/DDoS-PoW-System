@@ -1,5 +1,15 @@
 package com.jaradat.ddosmitigator;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.google.gson.Gson;
 import com.jaradat.ddosmitigator.challenge.Challenge;
 import com.jaradat.ddosmitigator.challenge.ChallengeService;
@@ -9,17 +19,8 @@ import com.jaradat.ddosmitigator.detection.IPProfile;
 import com.jaradat.ddosmitigator.detection.PolicyManager;
 import com.jaradat.ddosmitigator.mitigation.BlocklistService;
 import com.jaradat.ddosmitigator.simulator.TrafficSimulator;
-import io.javalin.websocket.WsContext;
 
-import java.security.MessageDigest;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import io.javalin.websocket.WsContext;
 
 public class DemoRunner {
 
@@ -64,7 +65,7 @@ public class DemoRunner {
                     broadcastUpdate("log", Map.of("message", "Unknown scenario mode selected."));
             }
             
-            broadcastUpdate("conclusion", Map.of("message", "Scenario execution finished.\n"));
+            //broadcastUpdate("conclusion", Map.of("message", "Scenario execution finished.\n"));
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -77,7 +78,7 @@ public class DemoRunner {
     private int calculateDifficulty(int severityLevel, int strikeCount) {
         // FIX: Ensure severity is at least 1 if we are issuing a challenge.
         int effectiveSeverity = Math.max(severityLevel, 1);
-        return (effectiveSeverity + 2) + strikeCount;
+        return (effectiveSeverity + 4) + strikeCount;
     }
 
     // --- SCENARIO 1: LEGIT USER ---
@@ -139,6 +140,15 @@ public class DemoRunner {
         String ip = "10.10.10.10";
         String targetUrl = "/api/v1/login"; 
         String ipDisplay = ip + " -> " + targetUrl;
+
+        // --- NEW FEATURE: Persistence Check ---
+        // If we try to run this scenario again without restarting, show that the system REMEMBERS.
+        if (blocklistService.isBlocked(ip)) {
+            broadcastUpdate("objective", Map.of("message", "Testing Banned Bot"));
+            Thread.sleep(1000);
+            broadcastUpdate("block", Map.of("message", "ACCESS DENIED: IP " + ip + " is already in the Blocklist.\nRestart server to clear memory."));
+            return; // EXIT the function. Do not run the simulation.
+            }
 
         broadcastUpdate("objective", Map.of("message", "Testing Unresponsive Bot"));
         
@@ -223,7 +233,7 @@ public class DemoRunner {
 
         // --- Phase 2: Re-Attack ---
         broadcastUpdate("log", Map.of("message", "Phase 2: Re-attack while Verified"));
-        List<Request> attack2 = simulator.simulateDumbBotAttack(ip, 200);
+        List<Request> attack2 = simulator.simulateDumbBotAttack(ip, 150);
         int severity2 = 0;
         for(Request req : attack2) severity2 = engine.processRequest(req);
         
@@ -231,7 +241,7 @@ public class DemoRunner {
         if (severity2 == 0) severity2 = 1;
         
         // Consistent Observation Alert for Re-Attack + Sleep
-        broadcastUpdate("detection", Map.of("message", "Abnormal Attack Threat Detected (Sev " + severity2 + "). Entering 2s Observation Window..."));
+        broadcastUpdate("detection", Map.of("message", "Anomaly Detected (Sev " + severity2 + "). Entering 2s Observation Window..."));
         broadcastUpdate("status", createStatusMap(ipDisplay, p, severity2, "Recidivism Detected"));
         Thread.sleep(2000);
         
@@ -239,7 +249,7 @@ public class DemoRunner {
 
         // Issue Harder Challenge
         int diff2 = calculateDifficulty(severity2, p.getStrikeCount());
-        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed. Escalating to Challenge Level " + diff2 + "."));
+        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed. Issuing Challenge (Diff " + diff2 + ")."));
         
         // Solve 2
         executeParallelPoW(diff2, "SOLVER RESULTS");
