@@ -111,13 +111,14 @@ public class DemoRunner {
         List<Request> burst = simulator.simulateDumbBotAttack(ip, 20); 
         int initialSeverity = 0;
         for (Request req : burst) {
-            initialSeverity = engine.processRequest(req);
+            engine.processRequest(req); // Return value ignored due to observation window
         }
         
-        // FORCE SEVERITY 1: If we are treating this as a burst, it must be Sev 1 at minimum.
+        IPProfile p = engine.getProfile(ip);
+        // FIX: Read actual severity from profile instead of relying on return value
+        initialSeverity = p.getCurrentSeverity();
         if (initialSeverity == 0) initialSeverity = 1;
         
-        IPProfile p = engine.getProfile(ip);
         String ipDisplay = ip + " -> " + burst.get(0).getUrl(); 
         
         // 1. Combined Alert
@@ -142,13 +143,12 @@ public class DemoRunner {
         String ipDisplay = ip + " -> " + targetUrl;
 
         // --- NEW FEATURE: Persistence Check ---
-        // If we try to run this scenario again without restarting, show that the system REMEMBERS.
         if (blocklistService.isBlocked(ip)) {
             broadcastUpdate("objective", Map.of("message", "Testing Banned Bot"));
             Thread.sleep(1000);
             broadcastUpdate("block", Map.of("message", "ACCESS DENIED: IP " + ip + " is already in the Blocklist.\nRestart server to clear memory."));
-            return; // EXIT the function. Do not run the simulation.
-            }
+            return; 
+        }
 
         broadcastUpdate("objective", Map.of("message", "Testing Unresponsive Bot"));
         
@@ -157,14 +157,15 @@ public class DemoRunner {
         for (int i = 0; i < 3; i++) {
             List<Request> traffic = simulator.simulateDumbBotAttack(ip, 100);
             for(Request req : traffic) {
-                severity = engine.processRequest(req);
+                engine.processRequest(req);
             }
             IPProfile p = engine.getProfile(ip);
+            severity = p.getCurrentSeverity(); // FIX: Read actual severity
+            
             broadcastUpdate("status", createStatusMap(ipDisplay, p, severity, "CRITICAL THREAT"));
             Thread.sleep(1000);
         }
 
-        // FORCE SEVERITY 1
         if (severity == 0) severity = 1;
 
         // ADDED: Consistent Observation Alert + Sleep
@@ -173,7 +174,6 @@ public class DemoRunner {
 
         // Issue Challenge
         int difficulty = calculateDifficulty(severity, 0);
-        // Used effectiveSeverity for display consistency
         int effectiveSeverity = Math.max(severity, 1);
         String mitigationMsg = String.format("Attack Confirmed (Sev %d). Issuing Challenge (Diff %d). Waiting for solution...", effectiveSeverity, difficulty);
         broadcastUpdate("mitigation", Map.of("message", mitigationMsg));
@@ -198,14 +198,20 @@ public class DemoRunner {
 
         // --- Phase 1: First Attack ---
         broadcastUpdate("log", Map.of("message", "Phase 1: Initial Flood"));
-        List<Request> attack1 = simulator.simulateDumbBotAttack(ip, 150);
-        int severity1 = 0;
-        for(Request req : attack1) severity1 = engine.processRequest(req);
         
-        // FORCE SEVERITY 1
-        if (severity1 == 0) severity1 = 1;
+        // CHANGED: Reduced to 40 requests.
+        // 40 reqs / 1s = 40 RPS -> Severity 1 (25-50 RPS).
+        // Difficulty = 4 + 1 + 0 = 5.
+        List<Request> attack1 = simulator.simulateDumbBotAttack(ip, 40);
+        
+        for(Request req : attack1) engine.processRequest(req);
         
         IPProfile p = engine.getProfile(ip);
+        int severity1 = p.getCurrentSeverity(); // Should be 1
+        
+        // Safety fallback
+        if (severity1 == 0) severity1 = 1;
+        
         broadcastUpdate("status", createStatusMap(ipDisplay, p, severity1, "Confirming Threat...")); 
         
         // ADDED: Consistent Observation Alert + Sleep
@@ -226,6 +232,11 @@ public class DemoRunner {
         p.setVerified(5000);
         p.incrementStrikeCount(); 
         
+        // --- FIX 1: Reset Severity to 0 so the engine can re-evaluate the next attack ---
+        p.setCurrentSeverity(0);
+        // --- FIX 2: Clear old requests to prevent time dilution ---
+        p.clearRequestHistory();
+        
         // Access Granted
         broadcastUpdate("status", createStatusMap(ipDisplay, p, 0, "Bot Verified (Access Granted)"));
         broadcastUpdate("log", Map.of("message", "Access Granted."));
@@ -233,12 +244,16 @@ public class DemoRunner {
 
         // --- Phase 2: Re-Attack ---
         broadcastUpdate("log", Map.of("message", "Phase 2: Re-attack while Verified"));
-        List<Request> attack2 = simulator.simulateDumbBotAttack(ip, 150);
-        int severity2 = 0;
-        for(Request req : attack2) severity2 = engine.processRequest(req);
         
-        // FORCE SEVERITY 1
-        if (severity2 == 0) severity2 = 1;
+        // 80 reqs / 1s = 80 RPS = Severity 2 (50-100 RPS)
+        // Difficulty = 4 + 2 + 1 = 7.
+        List<Request> attack2 = simulator.simulateDumbBotAttack(ip, 80);
+        for(Request req : attack2) engine.processRequest(req);
+        
+        // FIX: Grab the ACTUAL calculated severity (2) from the profile
+        int severity2 = p.getCurrentSeverity(); 
+        
+        if (severity2 == 0) severity2 = 1; // Fallback only if calculation failed
         
         // Consistent Observation Alert for Re-Attack + Sleep
         broadcastUpdate("detection", Map.of("message", "Anomaly Detected (Sev " + severity2 + "). Entering 2s Observation Window..."));
@@ -248,8 +263,9 @@ public class DemoRunner {
         broadcastUpdate("log", Map.of("message", "Bot has existing Strike Count of " + p.getStrikeCount() + "."));
 
         // Issue Harder Challenge
+        // Diff = Base(4) + Sev(2) + Strike(1) = 7
         int diff2 = calculateDifficulty(severity2, p.getStrikeCount());
-        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed. Issuing Challenge (Diff " + diff2 + ")."));
+        broadcastUpdate("mitigation", Map.of("message", "Attack Confirmed (Sev " + severity2 + "). Issuing Challenge (Diff " + diff2 + ")."));
         
         // Solve 2
         executeParallelPoW(diff2, "SOLVER RESULTS");

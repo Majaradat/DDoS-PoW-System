@@ -109,4 +109,14 @@ public class IPProfile {
     public void setVerified(long durationInMillis) {
         this.verifiedUntilTimestamp = System.currentTimeMillis() + durationInMillis;
     }
+
+    /**
+     * Clears the request history metrics (timestamps, counts) but preserves Reputation (Strikes).
+     * Used to reset the RPS calculation for a new simulation phase.
+     */
+    public void clearRequestHistory() {
+        this.requestTimestamps.clear();
+        this.requestUrlCounts.clear();
+        this.totalRequestCount = 0;
+    }
 }
